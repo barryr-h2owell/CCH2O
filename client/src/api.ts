@@ -1,6 +1,8 @@
 import type { AnalyteReading, HouseholdInfo, LabReportMetadata, ParsedLabReport, SavedDesignRecord, SavedDesignSummary, SystemDesign } from "./types";
 
-const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
+// Empty string = same-origin relative fetch, correct when the Express server also serves this
+// built app (see server/src/index.ts). Local dev sets VITE_API_URL via .env.development.
+const API_BASE = import.meta.env.VITE_API_URL ?? "";
 
 async function handle<T>(res: Response): Promise<T> {
   if (!res.ok) {
