@@ -118,8 +118,10 @@ export function DesignView({
       </section>
 
       <div className="disclaimer">
-        Sizing figures come from a placeholder rules engine (see server/src/lib/sizingEngine.ts) and are a starting
-        point only — verify against your own equipment specs before quoting or installing.
+        Product picks and sizing figures come from the Water-Right product catalog (see
+        server/src/lib/waterRightCatalog.ts, sourced from Water-Right spec sheets) — verify against the current
+        Water-Right literature before quoting or installing. UV disinfection sizing is still generic; no
+        Water-Right UV spec sheet has been provided yet.
       </div>
     </>
   );

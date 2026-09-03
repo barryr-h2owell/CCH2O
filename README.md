@@ -9,8 +9,9 @@ sizing notes and exceedance warnings.
 ## Project layout
 
 ```
-server/   Express + TypeScript API, SQLite storage, PDF parsing, sizing engine
-client/   React + Vite + TypeScript frontend
+server/             Express + TypeScript API, SQLite storage, PDF parsing, sizing engine
+server/spec-sheet/  Water-Right product spec sheet PDFs backing the catalog/sizing engine
+client/              React + Vite + TypeScript frontend
 ```
 
 ## Running locally
@@ -62,16 +63,46 @@ new sample and adjust the token-parsing rules in `parseAnalyteLine` /
 `extractMetadata` accordingly — the extracted values are always
 shown/editable in the UI as a safety net either way.
 
-## The sizing engine — placeholder, please tune it
+## The sizing engine — real Water-Right product data, one gap
 
-`server/src/lib/sizingEngine.ts` starts with generic water-treatment
-rules of thumb (EPA secondary MCLs, standard softener sizing math,
-standard resin tank sizes, etc.), **not your company's actual
-methodology or equipment specs**. Everything a recommendation depends on
-lives in the `THRESHOLDS` object and the per-contaminant blocks in
-`generateDesign()` — swap in your own numbers, add equipment-specific
-sizing (model numbers, tank sizes, membrane GPD), or change which
-analytes trigger which component, all in that one file.
+`server/src/lib/waterRightCatalog.ts` holds the actual Water-Right, Inc.
+product catalog (model numbers, grain capacities, max hardness/iron/
+manganese/pH ratings, flow rates), transcribed directly from the spec
+sheets in `server/spec-sheet/`:
+
+- **Softeners**: Impression Series (`IM-`, well water) and Impression +
+  carbon (`IMRC-`, chlorinated/municipal)
+- **Sanitizer Plus** (`ASP1-`/`ASP2-`): combined softening + iron/
+  manganese reduction for well water, up to 15 ppm combined Fe/Mn
+- **Air filters**: Greensand Plus (`IAG-`), AirCAT (`IACG-`, lower min
+  pH), Birm (`IMFE-`), Catalytic Carbon (`IMS-`, sulfur/H2S)
+- **Acid neutralizer** (`IMBF-xxxxMAN`), **Turbidex sediment filter**
+  and **carbon backwash filter** (`IMBF-`), **greensand iron filter**
+  (`IMAF-xxxxMGS`)
+- **HomeShield** whole-house carbon/PFAS filter (`AOS-HS-1200`)
+- **Impression R.O.** (Microline TFC-435) point-of-use RO
+
+`server/src/lib/sizingEngine.ts` picks the smallest catalog model that
+satisfies the required capacity/flow *and* stays within that model's
+rated hardness/iron/manganese/pH limits, routing well water with
+elevated iron+manganese to Sanitizer Plus (or a standalone air filter
+when no softening is needed) instead of a plain softener once it
+exceeds the 1.0 ppm iron rating a standard softener carries. When raw
+water exceeds every catalog model's rating (e.g. combined Fe/Mn over 15
+ppm), it emits a warning instead of guessing a product.
+
+**Known gap:** no Water-Right UV disinfection spec sheet was provided,
+so the UV disinfection recommendation (triggered by coliform bacteria)
+is still a generic placeholder — upload a UV spec sheet to
+`server/spec-sheet/` and update `sizingEngine.ts`/`waterRightCatalog.ts`
+to close it. The Impression Tannin filter is also sized by flow rate
+only (its literature covers features, not a tannin-ppm exchange
+capacity chart) — confirm actual capacity with Water-Right before
+finalizing a tannin quote.
+
+EPA secondary/primary MCL thresholds (used for warnings, not product
+selection) still live in the `THRESHOLDS` object at the top of
+`sizingEngine.ts`.
 
 ## Data storage
 
