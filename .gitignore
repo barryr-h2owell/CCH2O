@@ -1,0 +1,11 @@
+node_modules/
+dist/
+*.log
+
+# Backend
+server/data.sqlite3*
+
+# Editor
+.vscode/
+.idea/
+.DS_Store
