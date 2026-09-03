@@ -85,6 +85,16 @@ sheets in `server/spec-sheet/`:
   Technologies is the UV partner brand Water-Right installs; sized on
   the conservative NSF/EPA 40 mJ/cm² flow rating, with a check against
   its required influent limits (hardness, iron, tannin)
+- **Master Water Fusion 2.0** (`MWGP-`/`MWCGP-`/`MWHS-`) — a sibling
+  A.O. Smith brand the dealer also installs, used only as a *fallback*
+  for the standalone iron/manganese air filter when Water-Right's model
+  can't cover the iron/H2S level (Master Water's plain Greensand Plus
+  rates higher: 5.0 ppm iron / 1.0 ppm H2S vs Water-Right's 4.0 / 0.5).
+  Master Water's Clarifier 2.0 line (fine-particulate/Turbidex
+  filtration) is deliberately **not** in the catalog — whether it's
+  needed can only be determined by an on-site field test, not from lab
+  chemistry, so it isn't something this lab-report-driven engine can
+  trigger.
 
 `server/src/lib/sizingEngine.ts` picks the smallest catalog model that
 satisfies the required capacity/flow *and* stays within that model's

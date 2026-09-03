@@ -16,6 +16,8 @@ import {
   IMPRESSION_TANNIN_MODELS,
   IMRC_SOFTENER_MODELS,
   IM_SOFTENER_MODELS,
+  MASTER_WATER_AIRCAT_MODELS,
+  MASTER_WATER_GREENSAND_PLUS_MODELS,
   MICROLINE_RO,
   SANITIZER_ASP1_MODELS,
   SANITIZER_ASP2_MODELS,
@@ -95,6 +97,32 @@ function pickAirFilter(models: AirFilterModel[], ironPpm: number, h2sPpm: number
   return { model: fit ?? sorted[sorted.length - 1], exceeds: !fit };
 }
 
+/**
+ * Iron/manganese air filter selection across brands: prefer Water-Right, and only reach for
+ * Master Water's Fusion 2.0 line when Water-Right's model can't cover the iron/H2S level (its
+ * plain Greensand Plus rates higher: 5.0 ppm iron / 1.0 ppm H2S vs Water-Right's 4.0 / 0.5).
+ */
+function pickIronMnAirFilter(ironPpm: number, h2sPpm: number, phVal: number | null, peakFlowGpm: number) {
+  const wantsAirCat = phVal !== null && phVal < 6.8;
+  const brands: { brand: string; models: AirFilterModel[] }[] = wantsAirCat
+    ? [
+        { brand: "Water-Right", models: AIRCAT_MODELS },
+        { brand: "Master Water", models: MASTER_WATER_AIRCAT_MODELS },
+      ]
+    : [
+        { brand: "Water-Right", models: GREENSAND_PLUS_MODELS },
+        { brand: "Master Water", models: MASTER_WATER_GREENSAND_PLUS_MODELS },
+      ];
+
+  for (const { brand, models } of brands) {
+    const { model, exceeds } = pickAirFilter(models, ironPpm, h2sPpm, peakFlowGpm);
+    if (!exceeds) return { brand, model, wantsAirCat, exceeds: false };
+  }
+  // Neither brand's line covers this -- report against the higher-ceiling (Master Water) line.
+  const fallback = brands[1].models.reduce((a, b) => (b.maxIronPpm > a.maxIronPpm ? b : a));
+  return { brand: brands[1].brand, model: fallback, wantsAirCat, exceeds: true };
+}
+
 function pickFlowSized(models: FlowSizedModel[], peakFlowGpm: number) {
   const sorted = [...models].sort((a, b) => a.peakFlowGpm - b.peakFlowGpm);
   const fit = sorted.find((m) => m.peakFlowGpm >= peakFlowGpm);
@@ -138,6 +166,7 @@ export function generateDesign(analytes: AnalyteReading[], household: HouseholdI
 
   let phHandledUpstream = false;
   let phHandledMinPh = 0;
+  let ironMnFilterHandled = false;
 
   // --- Sediment / turbidity pre-filter (Turbidex) ---
   if (household.waterSource === "well" || (turbidity?.result ?? 0) > 1) {
@@ -243,17 +272,19 @@ export function generateDesign(analytes: AnalyteReading[], household: HouseholdI
     }
   } else if (ironMnElevated) {
     // Iron/manganese present, no well+softening path taken above (softening not needed, or municipal source):
-    // standalone air filter.
-    if (feMnVal <= 4.0) {
-      const wantsAirCat = phVal !== null && phVal < 6.8;
-      const line = wantsAirCat ? AIRCAT_MODELS : GREENSAND_PLUS_MODELS;
-      const { model, exceeds } = pickAirFilter(line, ironVal, h2sVal, household.peakFlowGpm);
+    // standalone air filter. Prefer Water-Right; fall back to Master Water's Fusion 2.0 line when
+    // Water-Right's ceiling (4.0 ppm iron / 0.5 ppm H2S) is too low.
+    const { brand, model, wantsAirCat, exceeds } = pickIronMnAirFilter(ironVal, h2sVal, phVal, household.peakFlowGpm);
+    if (!exceeds) {
       phHandledUpstream = wantsAirCat;
       phHandledMinPh = model.minPh;
+      ironMnFilterHandled = true;
       components.push({
         category: "iron_manganese_filter",
-        title: `Water-Right ${model.model} (${wantsAirCat ? "AirCAT" : "Greensand Plus"} Air Filter)`,
-        reason: `Iron and/or manganese (Fe ${ironVal} / Mn ${mnVal} ppm) exceed EPA secondary MCLs; chemical-free air-injection filter handles up to ${model.maxIronPpm} ppm iron without a chemical feed pump.`,
+        title: `${brand} ${model.model} (${wantsAirCat ? "AirCAT" : "Greensand Plus"} Air Filter)`,
+        reason:
+          `Iron and/or manganese (Fe ${ironVal} / Mn ${mnVal} ppm) exceed EPA secondary MCLs; chemical-free air-injection filter handles up to ${model.maxIronPpm} ppm iron without a chemical feed pump.` +
+          (brand === "Master Water" ? " Water-Right's equivalent tops out lower on iron/H2S; Master Water's Fusion 2.0 line covers this range." : ""),
         sizingNotes:
           `${model.mediaCuFt} cu.ft. media, rated ${model.continuousFlowGpm} gpm continuous / ${model.peakFlowGpm} gpm peak, minimum influent pH ${model.minPh}.` +
           (exceeds ? " Household peak flow exceeds the largest single-tank model -- consider a twin configuration." : ""),
@@ -264,7 +295,7 @@ export function generateDesign(analytes: AnalyteReading[], household: HouseholdI
       const gsModel = GREENSAND_IRON_FILTER_MODELS[0]?.model ?? "IMAF-MGS";
       warnings.push({
         analyte: "Iron/Manganese",
-        message: `Combined iron + manganese (${feMnVal.toFixed(2)} ppm) exceeds the 4 ppm rating of Water-Right's air-injection filters. A Sanitizer Plus (if softening is also wanted), a greensand iron filter (${gsModel} series -- no ppm ceiling was given in the spec sheet on file, confirm with Water-Right), or chemical-feed pretreatment is needed.`,
+        message: `Combined iron + manganese (${feMnVal.toFixed(2)} ppm) exceeds even Master Water's higher-capacity air-injection filter (${model.maxIronPpm} ppm iron / ${model.maxH2sPpm} ppm H2S). A Sanitizer Plus (if softening is also wanted), a greensand iron filter (${gsModel} series -- no ppm ceiling was given in the spec sheet on file, confirm with Water-Right), or chemical-feed pretreatment is needed.`,
         severity: "critical",
       });
     }
@@ -302,7 +333,7 @@ export function generateDesign(analytes: AnalyteReading[], household: HouseholdI
   }
 
   // --- Standalone sulfur/H2S catalytic carbon filter (odor not otherwise addressed) ---
-  if (h2sVal > 0 && h2sVal <= 5.0 && !(feMnVal > THRESHOLDS.ironSecondaryMclMgL && feMnVal <= 4.0)) {
+  if (h2sVal > 0 && h2sVal <= 5.0 && !ironMnFilterHandled) {
     const { model, exceeds } = pickAirFilter(CATALYTIC_CARBON_MODELS, ironVal, h2sVal, household.peakFlowGpm);
     components.push({
       category: "carbon_filter",

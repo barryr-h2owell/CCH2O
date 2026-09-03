@@ -17,6 +17,14 @@
  *                                                              iron-fouling sizing factor (see ironHardnessEquivalentGpgPerMgL
  *                                                              in sizingEngine.ts: "1 ppm iron = 4 gpg" per the manual's
  *                                                              hardness-setting instructions)
+ *  - Master-Water-Fusion-2.0-Spec-Sheet.pdf                -> MASTER_WATER_* air filter models. Master Water is a sibling
+ *                                                              A.O. Smith brand (same "AOS-MW-" spec numbering as Water-Right's
+ *                                                              own AOS-HS HomeShield sheet) the dealer also installs. Used
+ *                                                              only as a fallback when a Water-Right model's iron/H2S ceiling
+ *                                                              is too low -- see pickIronMnAirFilter in sizingEngine.ts.
+ *
+ * Master Water's Clarifier 2.0 line (acid neutralizer + Turbidex/carbon backwash filters) is
+ * intentionally NOT in this catalog -- the dealer doesn't install it.
  *
  * The Sanitizer Plus figures come from the *Twin* series spec sheet, which
  * states specs are "per tank" — used here as the single-tank Sanitizer Plus
@@ -117,6 +125,29 @@ export const CATALYTIC_CARBON_MODELS: AirFilterModel[] = [
   { model: "IMS-1054", mediaCuFt: 1.0, continuousFlowGpm: 5.0, peakFlowGpm: 8.0, backwashFlowGpm: 5.3, maxIronPpm: 1.0, maxH2sPpm: 5.0, minPh: 7.0 },
   { model: "IMS-1252", mediaCuFt: 1.5, continuousFlowGpm: 6.0, peakFlowGpm: 9.0, backwashFlowGpm: 7.5, maxIronPpm: 1.0, maxH2sPpm: 5.0, minPh: 7.0 },
   { model: "IMS-1354", mediaCuFt: 2.0, continuousFlowGpm: 7.0, peakFlowGpm: 10.0, backwashFlowGpm: 9.0, maxIronPpm: 1.0, maxH2sPpm: 5.0, minPh: 7.0 },
+];
+
+// --- Master Water Fusion 2.0: fallback air filters, used only when a Water-Right model's
+// iron/H2S ceiling is too low. MWGP's plain Greensand Plus rates higher than Water-Right's IAG
+// (5.0 ppm iron / 1.0 ppm H2S vs 4.0 / 0.5); MWHS (sulfur) and MWCGP (Greensand Plus + Calcite,
+// pH-correcting) rate the same as their Water-Right equivalents (IMS, IACG) so never actually win
+// the fallback, but are included for completeness against the spec sheet.
+export const MASTER_WATER_GREENSAND_PLUS_MODELS: AirFilterModel[] = [
+  { model: "MWGP-1054", mediaCuFt: 1.0, continuousFlowGpm: 3.0, peakFlowGpm: 6.0, backwashFlowGpm: 6.5, maxIronPpm: 5.0, maxH2sPpm: 1.0, minPh: 6.8 },
+  { model: "MWGP-1252", mediaCuFt: 1.5, continuousFlowGpm: 3.0, peakFlowGpm: 8.0, backwashFlowGpm: 9.0, maxIronPpm: 5.0, maxH2sPpm: 1.0, minPh: 6.8 },
+  { model: "MWGP-1354", mediaCuFt: 2.0, continuousFlowGpm: 5.0, peakFlowGpm: 10.0, backwashFlowGpm: 11.0, maxIronPpm: 5.0, maxH2sPpm: 1.0, minPh: 6.8 },
+];
+
+export const MASTER_WATER_AIRCAT_MODELS: AirFilterModel[] = [
+  { model: "MWCGP-1054", mediaCuFt: 1.0, continuousFlowGpm: 3.0, peakFlowGpm: 6.0, backwashFlowGpm: 6.5, maxIronPpm: 4.0, maxH2sPpm: 0.5, minPh: 6.3 },
+  { model: "MWCGP-1252", mediaCuFt: 1.5, continuousFlowGpm: 3.0, peakFlowGpm: 8.0, backwashFlowGpm: 9.0, maxIronPpm: 4.0, maxH2sPpm: 0.5, minPh: 6.3 },
+  { model: "MWCGP-1354", mediaCuFt: 2.0, continuousFlowGpm: 5.0, peakFlowGpm: 10.0, backwashFlowGpm: 11.0, maxIronPpm: 4.0, maxH2sPpm: 0.5, minPh: 6.3 },
+];
+
+export const MASTER_WATER_CATALYTIC_CARBON_MODELS: AirFilterModel[] = [
+  { model: "MWHS-1054", mediaCuFt: 1.0, continuousFlowGpm: 5.0, peakFlowGpm: 8.0, backwashFlowGpm: 5.3, maxIronPpm: 1.0, maxH2sPpm: 5.0, minPh: 7.0 },
+  { model: "MWHS-1252", mediaCuFt: 1.5, continuousFlowGpm: 6.0, peakFlowGpm: 9.0, backwashFlowGpm: 7.5, maxIronPpm: 1.0, maxH2sPpm: 5.0, minPh: 7.0 },
+  { model: "MWHS-1354", mediaCuFt: 2.0, continuousFlowGpm: 7.0, peakFlowGpm: 10.0, backwashFlowGpm: 9.0, maxIronPpm: 1.0, maxH2sPpm: 5.0, minPh: 7.0 },
 ];
 
 // --- Acid neutralizer (calcite/mix media, corrects low pH) ---
