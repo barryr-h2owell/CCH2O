@@ -11,9 +11,12 @@
  *  - AOS-HomeShield-Filter-PDS-1.pdf                       -> HOMESHIELD_CARBON
  *  - LIT-IM-TANNIN-3.pdf                                   -> IMPRESSION_TANNIN (flow data reused from IM cabinet dims; no
  *                                                              tannin-ppm capacity chart was included in that sheet)
- *
- * No spec sheet for a UV disinfection product was provided — see UV handling
- * in sizingEngine.ts, which is still a generic placeholder.
+ *  - VQ-Arros9-15-22-DryContact-SpecSheet_EN.pdf           -> VIQUA_ARROS_UV_MODELS (UV disinfection; VIQUA/Trojan Technologies,
+ *                                                              the UV partner brand Water-Right installs)
+ *  - Water-Right-IM-Softener-Manual.pdf                    -> confirmed IM/IMRC specs above and supplied the official
+ *                                                              iron-fouling sizing factor (see ironHardnessEquivalentGpgPerMgL
+ *                                                              in sizingEngine.ts: "1 ppm iron = 4 gpg" per the manual's
+ *                                                              hardness-setting instructions)
  *
  * The Sanitizer Plus figures come from the *Twin* series spec sheet, which
  * states specs are "per tank" — used here as the single-tank Sanitizer Plus
@@ -197,3 +200,24 @@ export const MICROLINE_RO = {
 export function mgLToGpg(mgL: number): number {
   return mgL / 17.1;
 }
+
+export interface UvModel {
+  model: string;
+  /** Flow rating at the conservative NSF/EPA 40 mJ/cm² dose -- the regulatory-grade rating for pathogen inactivation. */
+  nsfEpaFlowGpm: number;
+  /** Flow rating at VIQUA's own 30 mJ/cm² "Standard" dose -- higher throughput, still validated but less conservative. */
+  standardFlowGpm: number;
+  maxOperatingPressurePsi: number;
+}
+
+// --- VIQUA Arros UV disinfection (point-of-entry, partner brand Water-Right installs) ---
+export const VIQUA_ARROS_UV_MODELS: UvModel[] = [
+  { model: "VIQUA Arros 9", nsfEpaFlowGpm: 7, standardFlowGpm: 9, maxOperatingPressurePsi: 125 },
+  { model: "VIQUA Arros 15", nsfEpaFlowGpm: 12, standardFlowGpm: 15, maxOperatingPressurePsi: 125 },
+  { model: "VIQUA Arros 22", nsfEpaFlowGpm: 16, standardFlowGpm: 22, maxOperatingPressurePsi: 125 },
+];
+
+// UV pretreatment requirements -- exceeding these degrades UV transmittance/dose effectiveness.
+export const UV_MAX_PRETREAT_HARDNESS_GPG = 7; // < 7 grains (120 mg/L)
+export const UV_MAX_PRETREAT_IRON_MGL = 0.3;
+export const UV_MAX_PRETREAT_TANNIN_MGL = 0.1;

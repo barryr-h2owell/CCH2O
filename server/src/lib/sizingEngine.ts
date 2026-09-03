@@ -22,11 +22,16 @@ import {
   SANITIZER_MIN_HARDNESS_GPG,
   SANITIZER_MIN_TDS_PPM,
   TURBIDEX_MODELS,
+  UV_MAX_PRETREAT_HARDNESS_GPG,
+  UV_MAX_PRETREAT_IRON_MGL,
+  UV_MAX_PRETREAT_TANNIN_MGL,
+  VIQUA_ARROS_UV_MODELS,
   mgLToGpg,
   type AirFilterModel,
   type FlowSizedModel,
   type SanitizerModel,
   type SoftenerModel,
+  type UvModel,
 } from "./waterRightCatalog.js";
 
 /**
@@ -34,15 +39,14 @@ import {
  * SIZING ENGINE -- built on the Water-Right, Inc. product catalog
  * (server/src/lib/waterRightCatalog.ts, sourced from server/spec-sheet/*.pdf)
  * ============================================================================
- * Everything with a Water-Right spec sheet behind it (softeners, Sanitizer
- * Plus, air filters, acid neutralizers, the HomeShield carbon filter, and the
- * Microline RO) is sized against real model numbers and their rated
- * hardness/iron/manganese/pH/flow limits. Two things are NOT backed by a
- * Water-Right spec sheet and remain generic placeholders, clearly marked
- * below: UV disinfection (no product literature was provided) and the
- * Impression Tannin's exchange capacity (the tannin literature we have
- * covers features, not a ppm/capacity chart -- sizing there is by flow rate
- * only, so confirm actual capacity with Water-Right before quoting).
+ * Everything with a Water-Right (or partner-brand) spec sheet behind it --
+ * softeners, Sanitizer Plus, air filters, acid neutralizers, the HomeShield
+ * carbon filter, the Microline RO, and VIQUA Arros UV -- is sized against
+ * real model numbers and their rated hardness/iron/manganese/pH/flow limits.
+ * One thing is NOT backed by a capacity chart and remains a flow-only
+ * estimate: the Impression Tannin's exchange capacity (its literature
+ * covers features, not a ppm/capacity chart) -- confirm actual capacity
+ * with Water-Right before quoting.
  */
 
 export const THRESHOLDS = {
@@ -58,7 +62,9 @@ export const THRESHOLDS = {
   leadActionLevelMgL: 0.015,
   sulfateSecondaryMclMgL: 250,
   chlorineTasteThresholdMgL: 0.5,
-  ironHardnessEquivalentGpgPerMgL: 3, // rule-of-thumb fouling load added to required softener capacity
+  // Water-Right's own softener manual (Water-Right-IM-Softener-Manual.pdf, "Programming
+  // Procedures"): "increase the grains per gallon if soluble iron is present (1 ppm = 4 gpg)".
+  ironHardnessEquivalentGpgPerMgL: 4,
   softenerRegenTargetDays: 4,
 } as const;
 
@@ -92,6 +98,12 @@ function pickAirFilter(models: AirFilterModel[], ironPpm: number, h2sPpm: number
 function pickFlowSized(models: FlowSizedModel[], peakFlowGpm: number) {
   const sorted = [...models].sort((a, b) => a.peakFlowGpm - b.peakFlowGpm);
   const fit = sorted.find((m) => m.peakFlowGpm >= peakFlowGpm);
+  return { model: fit ?? sorted[sorted.length - 1], exceeds: !fit };
+}
+
+function pickUv(models: UvModel[], peakFlowGpm: number) {
+  const sorted = [...models].sort((a, b) => a.nsfEpaFlowGpm - b.nsfEpaFlowGpm);
+  const fit = sorted.find((m) => m.nsfEpaFlowGpm >= peakFlowGpm);
   return { model: fit ?? sorted[sorted.length - 1], exceeds: !fit };
 }
 
@@ -438,13 +450,25 @@ export function generateDesign(analytes: AnalyteReading[], household: HouseholdI
     });
   }
 
-  // --- UV Disinfection -- NO Water-Right spec sheet was provided for this; generic placeholder. ---
+  // --- UV Disinfection (VIQUA Arros, the UV partner brand Water-Right installs) ---
   if (coliform && (coliform.nonDetect === false || /present/i.test(coliform.resultRaw))) {
+    const { model, exceeds } = pickUv(VIQUA_ARROS_UV_MODELS, household.peakFlowGpm);
+    const tanninVal = tannin?.result ?? 0;
+    const uvPretreatIssues: string[] = [];
+    if (hardnessVal > UV_MAX_PRETREAT_HARDNESS_GPG) uvPretreatIssues.push(`hardness ${hardnessVal} GPG > ${UV_MAX_PRETREAT_HARDNESS_GPG} GPG`);
+    if (ironVal > UV_MAX_PRETREAT_IRON_MGL) uvPretreatIssues.push(`iron ${ironVal} > ${UV_MAX_PRETREAT_IRON_MGL} mg/L`);
+    if (tanninVal > UV_MAX_PRETREAT_TANNIN_MGL) uvPretreatIssues.push(`tannin ${tanninVal} > ${UV_MAX_PRETREAT_TANNIN_MGL} mg/L`);
+
     components.push({
       category: "uv_disinfection",
-      title: "UV Disinfection (generic -- no Water-Right UV spec sheet on file)",
-      reason: `Coliform bacteria detected (${coliform.resultRaw}). UV disinfection recommended after filtration, ahead of point of use.`,
-      sizingNotes: `Size UV system for ${household.peakFlowGpm} gpm peak flow with pre-filtration to <=5 micron for adequate UV transmittance. Recommend shock chlorination of well and re-test before relying on UV alone. Confirm the specific Water-Right (or partner) UV product and model with your rep -- not included in the spec sheets on file.`,
+      title: `${model.model} (UV Disinfection, VIQUA -- Water-Right's UV partner brand)`,
+      reason: `Coliform bacteria detected (${coliform.resultRaw}). UV disinfection is the final treatment stage, installed after filtration and ahead of point of use.`,
+      sizingNotes:
+        `Rated ${model.nsfEpaFlowGpm} gpm at the NSF/EPA 40 mJ/cm² dose (${model.standardFlowGpm} gpm at VIQUA's 30 mJ/cm² standard dose), max operating pressure ${model.maxOperatingPressurePsi} psi. ` +
+        `Requires influent within: hardness < ${UV_MAX_PRETREAT_HARDNESS_GPG} GPG, iron < ${UV_MAX_PRETREAT_IRON_MGL} mg/L, tannin < ${UV_MAX_PRETREAT_TANNIN_MGL} mg/L for adequate UV transmittance. ` +
+        `Recommend shock chlorination of the well and re-testing before relying on UV alone.` +
+        (exceeds ? " Household peak flow exceeds the largest Arros model -- consult VIQUA/Water-Right for a larger or paralleled system." : "") +
+        (uvPretreatIssues.length ? ` Raw water exceeds UV pretreatment limits (${uvPretreatIssues.join(", ")}) -- rely on the softener/iron/tannin treatment above; UV influent must be within these limits.` : ""),
       triggeredBy: [`Coliform: ${coliform.resultRaw}`],
       priority: 6,
     });

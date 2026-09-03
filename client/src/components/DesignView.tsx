@@ -119,9 +119,10 @@ export function DesignView({
 
       <div className="disclaimer">
         Product picks and sizing figures come from the Water-Right product catalog (see
-        server/src/lib/waterRightCatalog.ts, sourced from Water-Right spec sheets) — verify against the current
-        Water-Right literature before quoting or installing. UV disinfection sizing is still generic; no
-        Water-Right UV spec sheet has been provided yet.
+        server/src/lib/waterRightCatalog.ts, sourced from Water-Right and partner-brand spec sheets) — verify
+        against the current Water-Right literature before quoting or installing. The Impression Tannin filter is
+        sized by flow rate only (no tannin-ppm capacity chart was provided) — confirm actual capacity with
+        Water-Right before finalizing a tannin quote.
       </div>
     </>
   );

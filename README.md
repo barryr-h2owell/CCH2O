@@ -81,6 +81,10 @@ sheets in `server/spec-sheet/`:
   (`IMAF-xxxxMGS`)
 - **HomeShield** whole-house carbon/PFAS filter (`AOS-HS-1200`)
 - **Impression R.O.** (Microline TFC-435) point-of-use RO
+- **VIQUA Arros** UV disinfection (`Arros 9/15/22`) — VIQUA/Trojan
+  Technologies is the UV partner brand Water-Right installs; sized on
+  the conservative NSF/EPA 40 mJ/cm² flow rating, with a check against
+  its required influent limits (hardness, iron, tannin)
 
 `server/src/lib/sizingEngine.ts` picks the smallest catalog model that
 satisfies the required capacity/flow *and* stays within that model's
@@ -89,16 +93,16 @@ elevated iron+manganese to Sanitizer Plus (or a standalone air filter
 when no softening is needed) instead of a plain softener once it
 exceeds the 1.0 ppm iron rating a standard softener carries. When raw
 water exceeds every catalog model's rating (e.g. combined Fe/Mn over 15
-ppm), it emits a warning instead of guessing a product.
+ppm), it emits a warning instead of guessing a product. The
+iron-to-hardness fouling-load factor used when sizing a softener for
+iron-bearing water (`ironHardnessEquivalentGpgPerMgL` in `THRESHOLDS`)
+is Water-Right's own published figure — "1 ppm iron = 4 gpg" — from
+`Water-Right-IM-Softener-Manual.pdf`.
 
-**Known gap:** no Water-Right UV disinfection spec sheet was provided,
-so the UV disinfection recommendation (triggered by coliform bacteria)
-is still a generic placeholder — upload a UV spec sheet to
-`server/spec-sheet/` and update `sizingEngine.ts`/`waterRightCatalog.ts`
-to close it. The Impression Tannin filter is also sized by flow rate
-only (its literature covers features, not a tannin-ppm exchange
-capacity chart) — confirm actual capacity with Water-Right before
-finalizing a tannin quote.
+**Known gap:** the Impression Tannin filter is sized by flow rate only
+(its literature covers features, not a tannin-ppm exchange capacity
+chart) — confirm actual capacity with Water-Right before finalizing a
+tannin quote.
 
 EPA secondary/primary MCL thresholds (used for warnings, not product
 selection) still live in the `THRESHOLDS` object at the top of
