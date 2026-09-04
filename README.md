@@ -10,7 +10,8 @@ sizing notes and exceedance warnings.
 
 ```
 server/             Express + TypeScript API, SQLite storage, PDF parsing, sizing engine
-server/spec-sheet/  Water-Right product spec sheet PDFs backing the catalog/sizing engine
+server/spec-sheet/  Water-Right/Master Water product spec sheet PDFs backing the catalog/sizing engine
+server/past-jobs/   Real past contracts (water test -> equipment sold) -- see server/past-jobs/README.md
 client/              React + Vite + TypeScript frontend
 ```
 
