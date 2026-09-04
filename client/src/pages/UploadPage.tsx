@@ -232,40 +232,42 @@ export function UploadPage() {
         {analytes.length === 0 ? (
           <p className="empty-note">No results yet. Upload a report above, use Quick Add, or add rows manually.</p>
         ) : (
-          <table className="analyte-table">
-            <thead>
-              <tr>
-                <th>Analyte</th>
-                <th>Result</th>
-                <th>Unit</th>
-                <th>PQL</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {analytes.map((a, i) => (
-                <tr key={i}>
-                  <td>
-                    <input value={a.name} onChange={(e) => updateAnalyte(i, "name", e.target.value)} placeholder="e.g. Iron" />
-                  </td>
-                  <td>
-                    <input value={a.resultRaw} onChange={(e) => updateAnalyte(i, "result", e.target.value)} placeholder="e.g. 4.61" />
-                  </td>
-                  <td>
-                    <input value={a.unit} onChange={(e) => updateAnalyte(i, "unit", e.target.value)} placeholder="mg/L" />
-                  </td>
-                  <td>
-                    <input value={a.pql ?? ""} onChange={(e) => updateAnalyte(i, "pql", e.target.value)} placeholder="optional" />
-                  </td>
-                  <td>
-                    <button type="button" className="btn-icon" onClick={() => removeAnalyteRow(i)} aria-label="Remove row">
-                      ✕
-                    </button>
-                  </td>
+          <div className="table-scroll">
+            <table className="analyte-table">
+              <thead>
+                <tr>
+                  <th>Analyte</th>
+                  <th>Result</th>
+                  <th>Unit</th>
+                  <th>PQL</th>
+                  <th></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {analytes.map((a, i) => (
+                  <tr key={i}>
+                    <td>
+                      <input value={a.name} onChange={(e) => updateAnalyte(i, "name", e.target.value)} placeholder="e.g. Iron" />
+                    </td>
+                    <td>
+                      <input value={a.resultRaw} onChange={(e) => updateAnalyte(i, "result", e.target.value)} placeholder="e.g. 4.61" />
+                    </td>
+                    <td>
+                      <input value={a.unit} onChange={(e) => updateAnalyte(i, "unit", e.target.value)} placeholder="mg/L" />
+                    </td>
+                    <td>
+                      <input value={a.pql ?? ""} onChange={(e) => updateAnalyte(i, "pql", e.target.value)} placeholder="optional" />
+                    </td>
+                    <td>
+                      <button type="button" className="btn-icon" onClick={() => removeAnalyteRow(i)} aria-label="Remove row">
+                        ✕
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
 

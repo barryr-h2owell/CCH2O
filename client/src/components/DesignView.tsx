@@ -61,26 +61,28 @@ export function DesignView({
 
       <section className="card">
         <h2>Lab Results</h2>
-        <table className="analyte-table analyte-table-readonly">
-          <thead>
-            <tr>
-              <th>Analyte</th>
-              <th>Result</th>
-              <th>Unit</th>
-              <th>PQL</th>
-            </tr>
-          </thead>
-          <tbody>
-            {analytes.map((a, i) => (
-              <tr key={i}>
-                <td>{a.name}</td>
-                <td>{a.resultRaw}</td>
-                <td>{a.unit}</td>
-                <td>{a.pql ?? "—"}</td>
+        <div className="table-scroll">
+          <table className="analyte-table analyte-table-readonly">
+            <thead>
+              <tr>
+                <th>Analyte</th>
+                <th>Result</th>
+                <th>Unit</th>
+                <th>PQL</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {analytes.map((a, i) => (
+                <tr key={i}>
+                  <td>{a.name}</td>
+                  <td>{a.resultRaw}</td>
+                  <td>{a.unit}</td>
+                  <td>{a.pql ?? "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       {design.warnings.length > 0 && (
