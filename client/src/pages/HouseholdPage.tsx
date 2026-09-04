@@ -12,6 +12,7 @@ const DEFAULTS: HouseholdInfo = {
   waterSource: "well",
   hasWaterHeater: true,
   budgetTier: "standard",
+  stainingObserved: false,
   notes: "",
 };
 
@@ -116,6 +117,18 @@ export function HouseholdPage() {
           <input type="checkbox" checked={form.hasWaterHeater} onChange={(e) => update("hasWaterHeater", e.target.checked)} />
           Has a water heater installed
         </label>
+
+        {form.waterSource === "well" && (
+          <label className="checkbox-label span-2">
+            <input
+              type="checkbox"
+              checked={form.stainingObserved ?? false}
+              onChange={(e) => update("stainingObserved", e.target.checked)}
+            />
+            Iron/manganese staining observed on fixtures (toilet, sinks, tub) — well iron fluctuates
+            seasonally, so this can justify a Sanitizer Plus even when today's lab test reads low
+          </label>
+        )}
 
         <label className="span-2">
           Notes

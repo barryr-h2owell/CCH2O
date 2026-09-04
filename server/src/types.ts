@@ -39,6 +39,14 @@ export interface HouseholdInfo {
   waterSource: "well" | "municipal";
   hasWaterHeater: boolean;
   budgetTier: "economy" | "standard" | "premium";
+  /**
+   * On-site observation, not derivable from the lab report: iron/manganese staining
+   * on fixtures (toilet, sinks, tub). Well iron fluctuates seasonally, so a single lab
+   * test can catch it on a low day even when staining shows the real level runs higher.
+   * Field techs use this to justify a Sanitizer Plus even when tested iron is well below
+   * the 1.0 ppm threshold that would otherwise trigger it on lab numbers alone.
+   */
+  stainingObserved?: boolean;
   notes?: string;
 }
 

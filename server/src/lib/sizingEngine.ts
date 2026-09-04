@@ -192,8 +192,14 @@ export function generateDesign(analytes: AnalyteReading[], household: HouseholdI
 
   const ironMnElevated = ironVal > THRESHOLDS.ironSecondaryMclMgL || mnVal > THRESHOLDS.manganeseSecondaryMclMgL;
 
+  // Field judgment call, not derivable from the lab report alone: well iron fluctuates
+  // seasonally, so a single test can catch it low even when staining shows the real level
+  // runs higher. Observed staining pulls the Sanitizer Plus trigger down from 1.0 to 0.5 ppm.
+  const stainingTrigger = household.stainingObserved === true && ironVal >= 0.5;
+  const wantsSanitizerPlus = feMnVal >= 1.0 || stainingTrigger;
+
   if (needsSoftening && household.waterSource === "well") {
-    if (feMnVal <= 1.0) {
+    if (!wantsSanitizerPlus) {
       // Standard softener handles the iron/manganese load itself.
       const { model, exceeds } = pickSoftener(IM_SOFTENER_MODELS, requiredGrains, hardnessVal, ironVal, household.peakFlowGpm);
       components.push({
@@ -216,16 +222,24 @@ export function generateDesign(analytes: AnalyteReading[], household: HouseholdI
       phHandledMinPh = model.minPh;
 
       const belowMinPh = phVal !== null && phVal < model.minPh;
+      const triggeredByStainingOnly = feMnVal < 1.0 && stainingTrigger;
       components.push({
         category: "iron_manganese_filter",
         title: `Water-Right ${model.model} (Sanitizer Plus -- combined softener + Fe/Mn reduction)`,
-        reason: `Combined iron + manganese (${feMnVal.toFixed(2)} ppm) exceeds a standard softener's 1.0 ppm rating; Sanitizer Plus handles hardness and Fe/Mn in one pass, up to ${model.maxFeMnPpm} ppm.`,
+        reason: triggeredByStainingOnly
+          ? `Tested iron (${feMnVal.toFixed(2)} ppm) is below the 1.0 ppm rating a standard softener could handle alone, but observed staining indicates seasonal iron fluctuation -- a single lab test can catch a well's iron on a low day. Sanitizer Plus handles hardness and Fe/Mn in one pass, up to ${model.maxFeMnPpm} ppm, so it's specified as a margin against the higher seasonal level.`
+          : `Combined iron + manganese (${feMnVal.toFixed(2)} ppm) exceeds a standard softener's 1.0 ppm rating; Sanitizer Plus handles hardness and Fe/Mn in one pass, up to ${model.maxFeMnPpm} ppm.`,
         sizingNotes:
           `Rated up to ${model.maxGrains.toLocaleString()} grains (medium-salting: ${model.medGrains.toLocaleString()}) per tank, max hardness ${model.maxHardnessGpg} GPG, max combined Fe/Mn ${model.maxFeMnPpm} ppm, minimum influent pH ${model.minPh}, peak flow ${model.peakFlowGpm} gpm. ` +
           `Requires >= ${SANITIZER_MIN_HARDNESS_GPG} GPG hardness and >= ${SANITIZER_MIN_TDS_PPM} ppm TDS to operate correctly.` +
           (exceeds ? " Exceeds the largest single-tank model -- a twin configuration or custom design may be needed; confirm with Water-Right." : "") +
           (belowMinPh ? ` Influent pH (${phVal}) is below this model's minimum (${model.minPh}) -- an acid neutralizer ahead of this unit is required.` : ""),
-        triggeredBy: [`Iron ${iron?.resultRaw ?? "0"} mg/L`, `Manganese ${manganese?.resultRaw ?? "0"} mg/L`, `Hardness ${hardness?.resultRaw} GPG`],
+        triggeredBy: [
+          `Iron ${iron?.resultRaw ?? "0"} mg/L`,
+          `Manganese ${manganese?.resultRaw ?? "0"} mg/L`,
+          `Hardness ${hardness?.resultRaw} GPG`,
+          ...(stainingTrigger ? ["Staining observed on fixtures (seasonal iron margin)"] : []),
+        ],
         priority: 2,
       });
 

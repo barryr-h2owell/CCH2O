@@ -36,6 +36,8 @@ export interface HouseholdInfo {
   waterSource: "well" | "municipal";
   hasWaterHeater: boolean;
   budgetTier: "economy" | "standard" | "premium";
+  /** On-site observation: iron/manganese staining on fixtures (toilet, sinks, tub). */
+  stainingObserved?: boolean;
   notes?: string;
 }
 
