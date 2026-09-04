@@ -36,11 +36,17 @@ override with `VITE_API_URL` if you deploy the API elsewhere.
 
 ## How it works
 
-1. **Upload** (`client/src/pages/UploadPage.tsx`) — a lab report PDF is
-   posted to `POST /api/lab-reports/parse`, which extracts text
+1. **Upload or Quick Add** (`client/src/pages/UploadPage.tsx`) — a lab report
+   PDF is posted to `POST /api/lab-reports/parse`, which extracts text
    (`server/src/lib/pdfParser.ts`) and returns structured customer/site
    metadata plus a table of analyte readings. Extracted values are
    editable before continuing, and rows can be added/removed by hand.
+   For field techs without a lab report, the Quick Add panel adds
+   pre-labeled rows matching the dealer's own on-site test form
+   (Hardness, Iron (fe++)/(fe+++), pH, TDS, Chlorine, Turbidity,
+   Arsenic, Nitrate, plus a few lab-only extras) — no PDF required.
+   Customer name/location are always editable, not just when parsed
+   from a PDF.
 2. **Household info** (`client/src/pages/HouseholdPage.tsx`) — occupants,
    bathrooms, peak flow rate, average daily use, water source, and budget
    tier are captured to drive sizing.

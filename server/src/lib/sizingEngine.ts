@@ -79,6 +79,24 @@ function findAnalyte(analytes: AnalyteReading[], ...names: string[]): AnalyteRea
   return analytes.find((a) => lower.some((n) => a.name.toLowerCase().includes(n)));
 }
 
+/**
+ * Sums every matching row instead of taking the first. Needed for iron: the dealer's own field
+ * test form (and this app's quick-add) splits it into separate "Iron (fe++)" and "Iron (fe+++)"
+ * rows, and total iron for treatment sizing is their sum -- findAnalyte's single-match would
+ * silently drop whichever one isn't first in the array.
+ */
+function sumAnalytes(analytes: AnalyteReading[], ...names: string[]): { total: number; display: string; unit: string; matches: AnalyteReading[] } {
+  const lower = names.map((n) => n.toLowerCase());
+  const matches = analytes.filter((a) => lower.some((n) => a.name.toLowerCase().includes(n)) && a.result !== null);
+  const total = matches.reduce((sum, a) => sum + (a.result ?? 0), 0);
+  const unit = matches[0]?.unit ?? "mg/L";
+  const display =
+    matches.length <= 1
+      ? (matches[0]?.resultRaw ?? "0")
+      : `${total} (${matches.map((a) => `${a.name} ${a.resultRaw}`).join(" + ")})`;
+  return { total, display, unit, matches };
+}
+
 function pickSoftener(models: SoftenerModel[], requiredGrains: number, hardnessGpg: number, ironPpm: number, peakFlowGpm: number) {
   const sorted = [...models].sort((a, b) => a.medGrains - b.medGrains);
   const fit = sorted.find(
@@ -144,7 +162,9 @@ export function generateDesign(analytes: AnalyteReading[], household: HouseholdI
   const warnings: DesignWarning[] = [];
 
   const hardness = findAnalyte(analytes, "hardness");
-  const iron = findAnalyte(analytes, "iron");
+  // Iron may be split across "Iron (fe++)" and "Iron (fe+++)" rows (the dealer's own field-test
+  // form does this) -- sum them rather than reading only whichever comes first.
+  const iron = sumAnalytes(analytes, "iron");
   const manganese = findAnalyte(analytes, "manganese");
   const ph = findAnalyte(analytes, "ph");
   const tds = findAnalyte(analytes, "total dissolved solids", "tds");
@@ -161,7 +181,7 @@ export function generateDesign(analytes: AnalyteReading[], household: HouseholdI
   const h2s = findAnalyte(analytes, "hydrogen sulfide", "h2s", "sulfide");
 
   const hardnessVal = hardness?.result ?? 0;
-  const ironVal = iron?.result ?? 0;
+  const ironVal = iron.total;
   const mnVal = manganese?.result ?? 0;
   const feMnVal = ironVal + mnVal;
   const phVal = ph?.result ?? null;
@@ -215,7 +235,7 @@ export function generateDesign(analytes: AnalyteReading[], household: HouseholdI
           `Rated up to ${model.maxGrains.toLocaleString()} grains (medium-salting: ${model.medGrains.toLocaleString()}), max hardness ${model.maxHardnessGpg} GPG, max iron ${model.maxIronPpm} ppm, peak flow ${model.peakFlowGpm} gpm. ` +
           `Estimated requirement: ~${requiredGrains.toLocaleString()} grains over a ${THRESHOLDS.softenerRegenTargetDays}-day regen cycle at ${household.averageDailyUseGallons} gal/day.` +
           (exceeds ? " Exceeds the largest single-tank IM model on hand -- consider a twin (IMRC/twin cabinet) configuration or confirm with Water-Right." : ""),
-        triggeredBy: [`Hardness ${hardness?.resultRaw} GPG`, ...(ironVal ? [`Iron ${iron?.resultRaw} mg/L`] : [])],
+        triggeredBy: [`Hardness ${hardness?.resultRaw} GPG`, ...(ironVal ? [`Iron ${iron.display} mg/L`] : [])],
         priority: 3,
       });
     } else if (feMnVal <= 15.0) {
@@ -240,7 +260,7 @@ export function generateDesign(analytes: AnalyteReading[], household: HouseholdI
           (exceeds ? " Exceeds the largest single-tank model -- a twin configuration or custom design may be needed; confirm with Water-Right." : "") +
           (belowMinPh ? ` Influent pH (${phVal}) is below this model's minimum (${model.minPh}) -- an acid neutralizer ahead of this unit is required.` : ""),
         triggeredBy: [
-          `Iron ${iron?.resultRaw ?? "0"} mg/L`,
+          `Iron ${iron.display} mg/L`,
           `Manganese ${manganese?.resultRaw ?? "0"} mg/L`,
           `Hardness ${hardness?.resultRaw} GPG`,
           ...(stainingTrigger ? ["Staining observed on fixtures (seasonal iron margin)"] : []),
@@ -307,7 +327,7 @@ export function generateDesign(analytes: AnalyteReading[], household: HouseholdI
         sizingNotes:
           `${model.mediaCuFt} cu.ft. media, rated ${model.continuousFlowGpm} gpm continuous / ${model.peakFlowGpm} gpm peak, minimum influent pH ${model.minPh}.` +
           (exceeds ? " Household peak flow exceeds the largest single-tank model -- consider a twin configuration." : ""),
-        triggeredBy: [`Iron ${iron?.resultRaw ?? "0"} mg/L`, `Manganese ${manganese?.resultRaw ?? "0"} mg/L`],
+        triggeredBy: [`Iron ${iron.display} mg/L`, `Manganese ${manganese?.resultRaw ?? "0"} mg/L`],
         priority: 2,
       });
     } else {
@@ -339,7 +359,7 @@ export function generateDesign(analytes: AnalyteReading[], household: HouseholdI
   if (ironVal > THRESHOLDS.ironSecondaryMclMgL) {
     warnings.push({
       analyte: "Iron",
-      message: `Iron at ${iron?.resultRaw} mg/L exceeds the EPA secondary MCL of ${THRESHOLDS.ironSecondaryMclMgL} mg/L (aesthetic: staining, taste/odor).`,
+      message: `Iron at ${iron.display} mg/L exceeds the EPA secondary MCL of ${THRESHOLDS.ironSecondaryMclMgL} mg/L (aesthetic: staining, taste/odor).`,
       severity: "warning",
     });
   }
