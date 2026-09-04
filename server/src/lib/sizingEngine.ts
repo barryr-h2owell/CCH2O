@@ -9,7 +9,9 @@ import type {
 import {
   ACID_NEUTRALIZER_MODELS,
   AIRCAT_MODELS,
+  CASCADIAN_POLYHALT,
   CATALYTIC_CARBON_MODELS,
+  CUSTOM_CARE_ULTRA_FILTER,
   GREENSAND_IRON_FILTER_MODELS,
   GREENSAND_PLUS_MODELS,
   HOMESHIELD_CARBON,
@@ -19,10 +21,12 @@ import {
   MASTER_WATER_AIRCAT_MODELS,
   MASTER_WATER_GREENSAND_PLUS_MODELS,
   MICROLINE_RO,
+  NANO_ONE_FILTER,
   SANITIZER_ASP1_MODELS,
   SANITIZER_ASP2_MODELS,
   SANITIZER_MIN_HARDNESS_GPG,
   SANITIZER_MIN_TDS_PPM,
+  SILICA_CONCERN_THRESHOLD_PPM,
   TURBIDEX_MODELS,
   UV_MAX_PRETREAT_HARDNESS_GPG,
   UV_MAX_PRETREAT_IRON_MGL,
@@ -149,6 +153,7 @@ export function generateDesign(analytes: AnalyteReading[], household: HouseholdI
   const arsenic = findAnalyte(analytes, "arsenic");
   const lead = findAnalyte(analytes, "lead");
   const sulfate = findAnalyte(analytes, "sulfate");
+  const silica = findAnalyte(analytes, "silica");
   const tannin = findAnalyte(analytes, "tannin", "color");
   const turbidity = findAnalyte(analytes, "turbidity");
   const chlorine = findAnalyte(analytes, "chlorine");
@@ -351,7 +356,7 @@ export function generateDesign(analytes: AnalyteReading[], household: HouseholdI
     const { model, exceeds } = pickAirFilter(CATALYTIC_CARBON_MODELS, ironVal, h2sVal, household.peakFlowGpm);
     components.push({
       category: "carbon_filter",
-      title: `Water-Right ${model.model} (Catalytic Carbon Air Filter)`,
+      title: `Water-Right ${model.model} (Catalytic Carbon Air Filter, aka "Sulfur System")`,
       reason: `Hydrogen sulfide (${h2s?.resultRaw} ${h2s?.unit ?? "ppm"}) causes rotten-egg odor; catalytic carbon air filter reduces up to ${model.maxH2sPpm} ppm without chemicals.`,
       sizingNotes: `${model.mediaCuFt} cu.ft. catalytic carbon, rated ${model.continuousFlowGpm} gpm continuous / ${model.peakFlowGpm} gpm peak. Requires influent pH > ${model.minPh}.` + (exceeds ? " Exceeds largest single-tank model -- consider a twin configuration." : ""),
       triggeredBy: [`Hydrogen Sulfide ${h2s?.resultRaw}`],
@@ -448,7 +453,7 @@ export function generateDesign(analytes: AnalyteReading[], household: HouseholdI
     }
     components.push({
       category: "reverse_osmosis",
-      title: `Water-Right ${ro.model} (Point-of-Use RO)`,
+      title: ro.model,
       reason: "One or more contaminants exceed levels effectively reduced only by RO at the drinking-water tap.",
       sizingNotes:
         `System production ${ro.systemProductionGpd} gpd, membrane rated ${ro.membraneProductionMinGpd}-${ro.membraneProductionMaxGpd} gpd, ${ro.tdsReductionPct}% average TDS reduction, optimum rejection at pH ${ro.optimumPhMin}-${ro.optimumPhMax}. ` +
@@ -492,6 +497,80 @@ export function generateDesign(analytes: AnalyteReading[], household: HouseholdI
       analyte: "Sulfate",
       message: `Sulfate at ${sulfate?.resultRaw} mg/L exceeds the secondary MCL of ${THRESHOLDS.sulfateSecondaryMclMgL} mg/L (taste, potential laxative effect).`,
       severity: "info",
+    });
+  }
+
+  // --- Silica removal (Cascadian PolyHalt -- a third-party brand, not Water-Right/Master Water) ---
+  const silicaVal = silica?.result ?? 0;
+  if (silicaVal > SILICA_CONCERN_THRESHOLD_PPM) {
+    const p = CASCADIAN_POLYHALT;
+    const pretreatIssues: string[] = [];
+    if (hardnessVal > p.maxHardnessGpg) pretreatIssues.push(`hardness ${hardnessVal} GPG > ${p.maxHardnessGpg} GPG`);
+    if (feMnVal > p.maxIronMnCombinedPpm) pretreatIssues.push(`combined Fe/Mn ${feMnVal.toFixed(2)} > ${p.maxIronMnCombinedPpm} ppm`);
+    if (phVal !== null && (phVal < p.minPh || phVal > p.maxPh)) pretreatIssues.push(`pH ${phVal} outside ${p.minPh}-${p.maxPh}`);
+    components.push({
+      category: "silica_filter",
+      title: `${p.model}`,
+      reason: `Silica at ${silica?.resultRaw} ${silica?.unit ?? "ppm"} is above ${SILICA_CONCERN_THRESHOLD_PPM} ppm, a general industry rule-of-thumb concern level for scaling/spotting (silica has no EPA MCL; confirm the dealer's actual trigger practice).`,
+      sizingNotes:
+        `Single cartridge, best treatment flow ${p.bestTreatmentFlowMinGpm}-${p.bestTreatmentFlowMaxGpm} gpm (max ${p.maxFlowGpm} gpm), ~${p.cartridgeLifeMonths}-month cartridge life, rated up to ${p.maxSilicaPpm} ppm silica. ` +
+        `Needs pre-treated water ahead of it: hardness < ${p.maxHardnessGpg} GPG, combined Fe/Mn < ${p.maxIronMnCombinedPpm} ppm (clear only -- not colloidal/organic), turbidity < ${p.maxTurbidityNtu} NTU, pH ${p.minPh}-${p.maxPh}. Install after the softener/iron treatment above.` +
+        (silicaVal > p.maxSilicaPpm ? ` Tested silica exceeds this product's ${p.maxSilicaPpm} ppm rated ceiling -- consult Cascadian Water.` : "") +
+        (pretreatIssues.length ? ` Raw water also exceeds other pretreatment limits (${pretreatIssues.join(", ")}) -- confirm these are resolved by the treatment train above.` : ""),
+      triggeredBy: [`Silica ${silica?.resultRaw} ${silica?.unit ?? "ppm"}`],
+      priority: 4.5,
+    });
+  }
+
+  // --- Manual add-ons: customer preference, never lab-triggered (see waterRightCatalog.ts header) ---
+  if (household.pointOfUseRoRequested) {
+    const existingRo = components.find((c) => c.category === "reverse_osmosis");
+    if (existingRo) {
+      existingRo.reason += " Customer also specifically requested this as a point-of-use bottle-filler.";
+    } else {
+      const ro = MICROLINE_RO;
+      components.push({
+        category: "reverse_osmosis",
+        title: `${ro.model} (customer add-on)`,
+        reason: "Customer requested a point-of-use RO/bottle-filler regardless of lab results -- not triggered by a contaminant exceedance.",
+        sizingNotes: `System production ${ro.systemProductionGpd} gpd, membrane rated ${ro.membraneProductionMinGpd}-${ro.membraneProductionMaxGpd} gpd, ${ro.tdsReductionPct}% average TDS reduction.`,
+        triggeredBy: ["Customer request (add-on, not lab-driven)"],
+        priority: 5,
+      });
+    }
+  }
+
+  if (household.polishFilterTier === "nano_one") {
+    const f = NANO_ONE_FILTER;
+    components.push({
+      category: "polish_filter",
+      title: `${f.model} (manual add-on)`,
+      reason:
+        "Customer-requested final polish filter, not triggered by lab results -- reduces particulates in the " +
+        `${f.filtrationMicronMax}-${f.filtrationMicronMin} micron range with built-in antimicrobial (Agion) protection.`,
+      sizingNotes:
+        `Fixed cartridge housing (not sized by household demand). Replace every ${f.replacementYearsMin}-${f.replacementYearsMax} years based on usage. ` +
+        `For scale: about 25,000 one-micron particles line up edge-to-edge in an inch; at this filter's ${f.filtrationMicronMin} micron level, about 125,000 do.`,
+      triggeredBy: ["Customer request (add-on, not lab-driven)"],
+      priority: 5.5,
+    });
+  } else if (household.polishFilterTier === "ultra_filter") {
+    const f = CUSTOM_CARE_ULTRA_FILTER;
+    const pretreatIssues: string[] = [];
+    if (ironVal > f.maxIronPpm) pretreatIssues.push(`iron ${ironVal} > ${f.maxIronPpm} ppm`);
+    if (mnVal > f.maxManganesePpm) pretreatIssues.push(`manganese ${mnVal} > ${f.maxManganesePpm} ppm`);
+    if (chlorineVal > f.maxChlorinePpmContinuous) pretreatIssues.push(`chlorine ${chlorineVal} > ${f.maxChlorinePpmContinuous} ppm`);
+    components.push({
+      category: "polish_filter",
+      title: `${f.model} (manual add-on)`,
+      reason: `Customer-requested final polish filter, not triggered by lab results -- ${f.filtrationMicron} micron membrane, far finer than the Nano One's 0.2 micron.`,
+      sizingNotes:
+        `Rated ${f.continuousFlowGpm} gpm continuous / ${f.peakFlowGpm} gpm peak, needs ${f.prefiltrationMicron} micron pre-filtration ahead of it (the sediment filter above). ` +
+        `Requires influent iron < ${f.maxIronPpm} ppm, manganese < ${f.maxManganesePpm} ppm, chlorine < ${f.maxChlorinePpmContinuous} ppm continuous, pH ${f.phMin}-${f.phMax}. ` +
+        `For scale: about 25,000 one-micron particles line up edge-to-edge in an inch; at this filter's ${f.filtrationMicron} micron level, roughly 2.5 million do.` +
+        (pretreatIssues.length ? ` Raw water exceeds these limits (${pretreatIssues.join(", ")}) -- install after the softener/iron treatment above so influent is within range.` : ""),
+      triggeredBy: ["Customer request (add-on, not lab-driven)"],
+      priority: 5.5,
     });
   }
 
@@ -554,5 +633,7 @@ export const ALL_CATEGORIES: ComponentCategory[] = [
   "reverse_osmosis",
   "uv_disinfection",
   "tannin_filter",
+  "polish_filter",
+  "silica_filter",
   "no_treatment",
 ];

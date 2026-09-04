@@ -96,6 +96,41 @@ sheets in `server/spec-sheet/`:
   needed can only be determined by an on-site field test, not from lab
   chemistry, so it isn't something this lab-report-driven engine can
   trigger.
+- **Cascadian PolyHalt** (`ICS-P`/`ICS-PH`) — a third-party brand (not
+  Water-Right/Master Water) for silica removal, triggered off a
+  `Silica` analyte when the lab report includes one (silica has no EPA
+  MCL, so the trigger point is a general industry rule of thumb, not a
+  dealer- or spec-sheet-given figure — see `SILICA_CONCERN_THRESHOLD_PPM`)
+- **Custom Care UF Series** (Ultra-Filter, 0.02 micron) and
+  **Water-Right ONE Green Series** (Nano One, 0.2 micron cartridge) —
+  optional final "polish" filters, plus **QuadPro** (the dealer's name
+  for the point-of-use RO/bottle-filler, same Microline TFC-435 spec as
+  above). None of these three are lab-triggered — see below.
+
+### Field judgment the lab report can't capture
+
+Two things came directly from the dealer, not from any spec sheet, after
+cross-checking the engine's recommendations against `server/past-contracts/`
+(32 real water-test-in/equipment-out records):
+
+- **Staining observed on fixtures** (`HouseholdInfo.stainingObserved`) —
+  well iron fluctuates seasonally, so a single lab test can catch it on a
+  low day even when staining shows the real level runs higher. Per the
+  dealer: iron near 1.0 ppm always gets a Sanitizer Plus; iron as low as
+  ~0.5 ppm still gets one if staining is visibly present. This pulls the
+  Sanitizer Plus trigger down from 1.0 to 0.5 ppm when the box is checked.
+- **Polish filter tier and QuadPro RO** (`HouseholdInfo.polishFilterTier`,
+  `pointOfUseRoRequested`) — confirmed against the same 32 contracts that
+  which polish filter gets sold (none / Nano One / Ultra-Filter) tracks no
+  tested value at all; it's a customer conversation about how fine a
+  polish they want. Same for QuadPro, sold as an add-on regardless of lab
+  results, not only when nitrate/arsenic/TDS trigger an RO. Both are
+  manual selections in the household form rather than auto-triggered.
+
+"Sulfur System" on real contracts is just the dealer's name for the
+existing Catalytic Carbon filter (`CATALYTIC_CARBON_MODELS`/`IMS-xxxx`) —
+no separate product, only different terminology; the design output notes
+the alias.
 
 `server/src/lib/sizingEngine.ts` picks the smallest catalog model that
 satisfies the required capacity/flow *and* stays within that model's

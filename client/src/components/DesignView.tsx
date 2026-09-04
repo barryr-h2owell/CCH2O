@@ -9,6 +9,8 @@ const CATEGORY_LABELS: Record<string, string> = {
   reverse_osmosis: "Drinking Water (RO)",
   uv_disinfection: "Disinfection",
   tannin_filter: "Tannin Removal",
+  polish_filter: "Fine Particulate Polish (add-on)",
+  silica_filter: "Silica Removal",
   no_treatment: "No Treatment",
 };
 

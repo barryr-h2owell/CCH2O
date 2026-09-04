@@ -47,6 +47,17 @@ export interface HouseholdInfo {
    * the 1.0 ppm threshold that would otherwise trigger it on lab numbers alone.
    */
   stainingObserved?: boolean;
+  /**
+   * Manual add-on, not lab-triggered: which final "polish" filter (if any) the customer wants.
+   * Confirmed against real past contracts that this choice tracks no tested value -- it's a
+   * customer conversation about how fine a polish they want, priced accordingly.
+   */
+  polishFilterTier?: "none" | "nano_one" | "ultra_filter";
+  /**
+   * Manual add-on, not lab-triggered: customer wants a point-of-use RO/bottle-filler (sold as
+   * "QuadPro") regardless of whether lab results (nitrate/arsenic/TDS/etc.) would trigger one.
+   */
+  pointOfUseRoRequested?: boolean;
   notes?: string;
 }
 
@@ -59,6 +70,8 @@ export type ComponentCategory =
   | "reverse_osmosis"
   | "uv_disinfection"
   | "tannin_filter"
+  | "polish_filter"
+  | "silica_filter"
   | "no_treatment";
 
 export interface RecommendedComponent {

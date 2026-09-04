@@ -26,6 +26,34 @@
  * Master Water's Clarifier 2.0 line (acid neutralizer + Turbidex/carbon backwash filters) is
  * intentionally NOT in this catalog -- the dealer doesn't install it.
  *
+ *  - UF-Spec-Sheet-LIT-UF-SPEC.pdf                         -> CUSTOM_CARE_ULTRA_FILTER (0.02 micron membrane; Custom Care
+ *                                                              is the A.O. Smith brand this ships under)
+ *  - LIT-ONE-Filter-Comparison-4-19-1.pdf                  -> NANO_ONE_FILTER (Green Series NanoAl+Agion cartridge, 1-0.2
+ *                                                              micron; this comparison chart gives no gpm/pressure specs --
+ *                                                              it's a fixed-size cartridge housing, not sized by household)
+ *
+ * Per the dealer: which of these (none / Nano One / Ultra Filter) gets sold does NOT track any
+ * lab value -- confirmed independently from real contracts (see server/past-contracts/), where
+ * the choice showed no correlation with TDS, hardness, or anything else tested. It's a customer
+ * conversation about how fine a "polish" they want, priced accordingly -- so these are exposed
+ * as a manual add-on in the household form (see polishFilterTier), never auto-triggered by
+ * sizingEngine.ts the way every other component in this file is.
+ *
+ * Similarly, the dealer's "QuadPro" point-of-use RO/bottle-filler is sold as an optional add-on
+ * regardless of lab results, not only when nitrate/arsenic/TDS/etc. trigger it -- see
+ * pointOfUseRoRequested. It reuses the MICROLINE_RO spec below (same technology); "QuadPro" is
+ * the dealer's assembled/branded name for the finished unit on real invoices.
+ *
+ * "Sulfur System" on real contracts is the dealer's name for the Catalytic Carbon filter
+ * (CATALYTIC_CARBON_MODELS below, from Water-Right-IM-Air-Filter-Spec-Sheet-1.pdf) -- no separate
+ * product or spec sheet, just different terminology for the same IMS-xxxx models.
+ *
+ *  - Specs_-_ICS-P_ICS-PH.pdf                              -> CASCADIAN_POLYHALT (silica removal). NOT a Water-Right or
+ *                                                              Master Water product -- third-party brand (Cascadian
+ *                                                              Water / O3 Water Systems, Inc.) the dealer also installs.
+ *                                                              Unlike the polish filters above, this one IS lab-triggered
+ *                                                              off a "Silica" analyte when the lab report includes one.
+ *
  * The Sanitizer Plus figures come from the *Twin* series spec sheet, which
  * states specs are "per tank" — used here as the single-tank Sanitizer Plus
  * rating since no standalone (non-twin) spec sheet was provided.
@@ -209,9 +237,9 @@ export const HOMESHIELD_CARBON = {
   maxPh: 8,
 };
 
-// --- Microline TFC-435 R.O. Drinking Water System (single model, sold as Impression R.O.) ---
+// --- Microline TFC-435 R.O. Drinking Water System, sold to customers as "QuadPro" ---
 export const MICROLINE_RO = {
-  model: "Impression R.O. (Microline TFC-435)",
+  model: "QuadPro Point-of-Use R.O. (Microline TFC-435)",
   systemProductionGpd: 12,
   membraneProductionMinGpd: 41,
   membraneProductionMaxGpd: 53,
@@ -252,3 +280,62 @@ export const VIQUA_ARROS_UV_MODELS: UvModel[] = [
 export const UV_MAX_PRETREAT_HARDNESS_GPG = 7; // < 7 grains (120 mg/L)
 export const UV_MAX_PRETREAT_IRON_MGL = 0.3;
 export const UV_MAX_PRETREAT_TANNIN_MGL = 0.1;
+
+// --- Optional "polish" filters -- manual add-ons only, never lab-triggered (see file header) ---
+
+// Custom Care (A.O. Smith) UF Series membrane filtration -- single fixed size, no model variants.
+export const CUSTOM_CARE_ULTRA_FILTER = {
+  model: "Custom Care UF Series (Ultra-Filter)",
+  filtrationMicron: 0.02,
+  peakFlowGpm: 12,
+  continuousFlowGpm: 10,
+  waterPressureMinPsi: 10,
+  waterPressureMaxPsi: 100,
+  mediaTankDimensions: '8"x44"',
+  // Requires pre-filtered, low-iron/manganese/chlorine water ahead of it -- install after the
+  // primary softening/iron treatment in the design, same as the HomeShield/RO influent checks.
+  prefiltrationMicron: 5,
+  maxChlorinePpmContinuous: 1,
+  maxIronPpm: 0.3,
+  maxManganesePpm: 0.05,
+  phMin: 3,
+  phMax: 11,
+};
+
+// Water-Right ONE Green Series cartridge (NanoAl + Agion antimicrobial) -- fixed cartridge
+// housing, no gpm/pressure spec published (LIT-ONE-Filter-Comparison-4-19-1.pdf is a marketing
+// comparison chart, not a full performance spec sheet).
+export const NANO_ONE_FILTER = {
+  model: "Water-Right ONE Green Series (Nano One, NanoAl + Agion)",
+  filtrationMicronMin: 0.2,
+  filtrationMicronMax: 1,
+  replacementYearsMin: 3,
+  replacementYearsMax: 5,
+};
+
+// --- Silica removal -- Cascadian Water (O3 Water Systems, Inc.), a THIRD-PARTY brand, not
+// Water-Right/Master Water -- from Specs_-_ICS-P_ICS-PH.pdf. Single fixed-size cartridge
+// pre-filter installed downstream of primary treatment (needs pre-treated, low-iron/turbidity
+// water ahead of it). Unlike the polish filters above, this one IS lab-triggered: silica is a
+// real analyte a lab report can report, and the spec sheet gives real operating conditions.
+export const CASCADIAN_POLYHALT = {
+  model: "Cascadian ICS-P/ICS-PH (PolyHalt)",
+  bestTreatmentFlowMinGpm: 4,
+  bestTreatmentFlowMaxGpm: 8,
+  maxFlowGpm: 15,
+  maxPressurePsi: 120,
+  cartridgeLifeMonths: 12,
+  // Raw-water operating conditions (from the spec sheet's "Condition for Operation" column).
+  maxHardnessGpg: 25,
+  maxIronMnCombinedPpm: 6, // clear iron/manganese only -- colloidal/organic iron/manganese not treated
+  maxSilicaPpm: 100,
+  maxTurbidityNtu: 1,
+  minPh: 6.0,
+  maxPh: 8.5,
+};
+
+// No dealer- or spec-sheet-given "recommend PolyHalt above this silica ppm" trigger exists --
+// silica has no EPA MCL. This is a general water-treatment industry rule of thumb for when
+// silica starts causing scaling/spotting complaints, not a Cascadian- or Water-Right-sourced
+// figure -- confirm the dealer's actual practice before relying on it.
+export const SILICA_CONCERN_THRESHOLD_PPM = 20;

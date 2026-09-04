@@ -13,6 +13,8 @@ const DEFAULTS: HouseholdInfo = {
   hasWaterHeater: true,
   budgetTier: "standard",
   stainingObserved: false,
+  polishFilterTier: "none",
+  pointOfUseRoRequested: false,
   notes: "",
 };
 
@@ -129,6 +131,35 @@ export function HouseholdPage() {
             seasonally, so this can justify a Sanitizer Plus even when today's lab test reads low
           </label>
         )}
+
+        <div className="span-2 form-section-divider">
+          <h3>Optional add-ons</h3>
+          <p className="form-section-hint">
+            Customer preference, not determined by the lab test — confirmed against past jobs that these choices
+            track no tested value.
+          </p>
+        </div>
+
+        <label>
+          Final polish filter
+          <select
+            value={form.polishFilterTier ?? "none"}
+            onChange={(e) => update("polishFilterTier", e.target.value as HouseholdInfo["polishFilterTier"])}
+          >
+            <option value="none">None</option>
+            <option value="nano_one">Nano One (0.2 micron cartridge)</option>
+            <option value="ultra_filter">Ultra-Filter (0.02 micron membrane)</option>
+          </select>
+        </label>
+
+        <label className="checkbox-label">
+          <input
+            type="checkbox"
+            checked={form.pointOfUseRoRequested ?? false}
+            onChange={(e) => update("pointOfUseRoRequested", e.target.checked)}
+          />
+          Point-of-use RO / bottle-filler ("QuadPro") wanted regardless of lab results
+        </label>
 
         <label className="span-2">
           Notes
