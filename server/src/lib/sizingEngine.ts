@@ -639,9 +639,60 @@ export function generateDesign(analytes: AnalyteReading[], household: HouseholdI
   return {
     components,
     warnings,
-    treatmentOrderNote:
-      "Recommended install order (left to right): sediment pre-filter -> iron/manganese filter (air filter or Sanitizer Plus) -> acid neutralizer (if not built into the Fe/Mn unit) -> water softener/tannin filter -> whole-house carbon -> point-of-use RO. UV disinfection is typically installed as the last stage before distribution.",
+    treatmentOrderNote: buildTreatmentOrderNote(components),
   };
+}
+
+// Stage order for the install-order summary. A Sanitizer Plus (category iron_manganese_filter)
+// already includes both softening and mild pH correction, so it's labeled to make clear this
+// design doesn't need a separate softener/neutralizer stage alongside it, rather than implying
+// one is missing.
+const STAGE_ORDER: ComponentCategory[] = [
+  "sediment_filter",
+  "iron_manganese_filter",
+  "ph_neutralizer",
+  "water_softener",
+  "tannin_filter",
+  "silica_filter",
+  "carbon_filter",
+  "reverse_osmosis",
+  "polish_filter",
+  "uv_disinfection",
+];
+
+const STAGE_LABELS: Partial<Record<ComponentCategory, string>> = {
+  sediment_filter: "sediment pre-filter",
+  iron_manganese_filter: "iron/manganese filter",
+  ph_neutralizer: "acid neutralizer",
+  water_softener: "water softener",
+  tannin_filter: "tannin filter",
+  silica_filter: "silica filter",
+  carbon_filter: "whole-house carbon",
+  reverse_osmosis: "point-of-use RO",
+  polish_filter: "fine-particulate polish filter",
+  uv_disinfection: "UV disinfection",
+};
+
+function buildTreatmentOrderNote(components: RecommendedComponent[]): string {
+  const present = new Set(components.map((c) => c.category));
+  const sanitizerPlusPresent = components.some((c) => c.title.includes("Sanitizer Plus"));
+
+  if (present.size === 0 || (present.size === 1 && present.has("no_treatment"))) {
+    return "No treatment stage is recommended based on the tested parameters.";
+  }
+
+  const stages = STAGE_ORDER.filter((cat) => present.has(cat)).map((cat) => {
+    if (cat === "iron_manganese_filter" && sanitizerPlusPresent) {
+      return "iron/manganese filter (Sanitizer Plus -- softening and mild pH correction built in, no separate softener/neutralizer needed alongside it)";
+    }
+    return STAGE_LABELS[cat];
+  });
+
+  let note = `Recommended install order (left to right): ${stages.join(" -> ")}.`;
+  if (present.has("uv_disinfection")) {
+    note += " UV disinfection is installed as the last stage before distribution.";
+  }
+  return note;
 }
 
 export const ALL_CATEGORIES: ComponentCategory[] = [
