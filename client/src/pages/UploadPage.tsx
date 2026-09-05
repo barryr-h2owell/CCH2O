@@ -25,6 +25,7 @@ const ADDITIONAL_QUICK_ADD_FIELDS: { name: string; unit: string }[] = [
   { name: "Silica", unit: "mg/L" },
   { name: "Sulfate", unit: "mg/L" },
   { name: "Hydrogen Sulfide", unit: "mg/L" },
+  { name: "Uranium", unit: "ug/L" },
 ];
 
 export function UploadPage() {

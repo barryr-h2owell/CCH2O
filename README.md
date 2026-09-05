@@ -11,7 +11,7 @@ sizing notes and exceedance warnings.
 ```
 server/             Express + TypeScript API, SQLite storage, PDF parsing, sizing engine
 server/spec-sheet/  Water-Right/Master Water product spec sheet PDFs backing the catalog/sizing engine
-server/past-jobs/   Real past contracts (water test -> equipment sold) -- see server/past-jobs/README.md
+server/past-contracts/  Real past contracts (water test -> equipment sold), used to calibrate the sizing engine
 client/              React + Vite + TypeScript frontend
 ```
 
@@ -113,11 +113,35 @@ sheets in `server/spec-sheet/`:
   for the point-of-use RO/bottle-filler, same Microline TFC-435 spec as
   above). None of these three are lab-triggered — see below.
 
+### Calibrated against 86 real contracts
+
+`server/past-contracts/` now holds 86 real water-test-in/equipment-out
+records (two review passes: 32, then 54 more), used to check the engine's
+output against how the dealer actually designs systems and fix mismatches.
+The most recent pass changed three things:
+
+- **Softening trigger lowered to ≥1 GPG hardness** (was `> 1`) — a hard-water
+  softener recommendation should fire at exactly 1 GPG, not only above it.
+- **Uranium added as an RO trigger** (`THRESHOLDS.uraniumMclMgL = 0.03`,
+  the EPA MCL) — real contracts report it in µg/L, so
+  `analyteValueInMgL()` converts µg/L/mcg/L/ppb readings to mg/L before
+  comparing against the mg/L threshold (a naive comparison would have been
+  off by 1000x). Manual entry: Quick Add's "Additional" row now includes a
+  Uranium field labeled µg/L to match how it's actually tested.
+- **Sanitizer Plus below its operating minimums now gets an added Acid
+  Neutralizer, not just a warning.** Sanitizer Plus needs minimum influent
+  pH, hardness (`SANITIZER_MIN_HARDNESS_GPG = 3`), and TDS
+  (`SANITIZER_MIN_TDS_PPM = 80`) to regenerate correctly. Previously the
+  engine only warned when these were too low; per the dealer, the correct
+  fix is to add a Water-Right acid neutralizer (`IMBF-xxxxMAN`, calcite
+  media) upstream — the calcite dissolving into the water raises pH,
+  hardness, and TDS together, so Sanitizer Plus still works rather than
+  being routed around.
+
 ### Field judgment the lab report can't capture
 
 Two things came directly from the dealer, not from any spec sheet, after
-cross-checking the engine's recommendations against `server/past-contracts/`
-(32 real water-test-in/equipment-out records):
+cross-checking the engine's recommendations against `server/past-contracts/`:
 
 - **Staining observed on fixtures** (`HouseholdInfo.stainingObserved`) —
   well iron fluctuates seasonally, so a single lab test can catch it on a

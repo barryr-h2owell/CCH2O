@@ -66,6 +66,7 @@ export const THRESHOLDS = {
   nitriteMclMgL: 1,
   arsenicMclMgL: 0.01,
   leadActionLevelMgL: 0.015,
+  uraniumMclMgL: 0.03, // EPA primary MCL: 30 ug/L
   sulfateSecondaryMclMgL: 250,
   chlorineTasteThresholdMgL: 0.5,
   // Water-Right's own softener manual (Water-Right-IM-Softener-Manual.pdf, "Programming
@@ -77,6 +78,21 @@ export const THRESHOLDS = {
 function findAnalyte(analytes: AnalyteReading[], ...names: string[]): AnalyteReading | undefined {
   const lower = names.map((n) => n.toLowerCase());
   return analytes.find((a) => lower.some((n) => a.name.toLowerCase().includes(n)));
+}
+
+/**
+ * Normalizes a trace-metal reading to mg/L before comparing against an MCL threshold. Real
+ * contracts record uranium in ug/L (e.g. "111ug/L") while this engine's other thresholds
+ * (arsenic, lead) assume mg/L, matching the sample lab report -- comparing a ug/L value against
+ * a mg/L threshold directly would be off by 1000x, so convert whenever the unit says micrograms.
+ */
+function analyteValueInMgL(analyte: AnalyteReading | undefined): number {
+  if (!analyte || analyte.result === null) return 0;
+  const unit = analyte.unit.toLowerCase().replace(/\s/g, "");
+  if (unit.includes("ug/l") || unit.includes("µg/l") || unit.includes("mcg/l") || unit === "ppb") {
+    return analyte.result / 1000;
+  }
+  return analyte.result;
 }
 
 /**
@@ -173,6 +189,7 @@ export function generateDesign(analytes: AnalyteReading[], household: HouseholdI
   const arsenic = findAnalyte(analytes, "arsenic");
   const lead = findAnalyte(analytes, "lead");
   const sulfate = findAnalyte(analytes, "sulfate");
+  const uranium = findAnalyte(analytes, "uranium");
   const silica = findAnalyte(analytes, "silica");
   const tannin = findAnalyte(analytes, "tannin", "color");
   const turbidity = findAnalyte(analytes, "turbidity");
@@ -212,7 +229,9 @@ export function generateDesign(analytes: AnalyteReading[], household: HouseholdI
   }
 
   // --- Softening / iron+manganese path (well water) ---
-  const needsSoftening = hardnessVal > THRESHOLDS.hardnessSoftenGpg;
+  // Real contracts show a plain softener sold at hardness == 1 GPG (the WQA "slightly hard"
+  // starting point) -- >= rather than a strict > so that boundary case still triggers softening.
+  const needsSoftening = hardnessVal >= THRESHOLDS.hardnessSoftenGpg;
   const requiredGrains = Math.round((hardnessVal + ironVal * THRESHOLDS.ironHardnessEquivalentGpgPerMgL) * household.averageDailyUseGallons * THRESHOLDS.softenerRegenTargetDays);
 
   const ironMnElevated = ironVal > THRESHOLDS.ironSecondaryMclMgL || mnVal > THRESHOLDS.manganeseSecondaryMclMgL;
@@ -268,33 +287,32 @@ export function generateDesign(analytes: AnalyteReading[], household: HouseholdI
         priority: 2,
       });
 
-      if (belowMinPh) {
+      // Sanitizer Plus needs adequate influent pH, hardness, and TDS to regenerate correctly.
+      // Per the dealer: rather than routing away from Sanitizer Plus when one of these is too
+      // low, add an acid neutralizer upstream -- its calcite media dissolves into the water,
+      // raising pH, hardness, AND TDS together, so the Sanitizer Plus downstream can still work.
+      const belowMinHardness = hardnessVal < SANITIZER_MIN_HARDNESS_GPG;
+      const belowMinTds = tds !== undefined && tdsVal < SANITIZER_MIN_TDS_PPM;
+      if (belowMinPh || belowMinHardness || belowMinTds) {
         const neutralizer = pickFlowSized(ACID_NEUTRALIZER_MODELS, household.peakFlowGpm);
+        const shortfalls: string[] = [];
+        if (belowMinPh) shortfalls.push(`pH ${phVal} is below the minimum influent pH (${model.minPh}) for this Sanitizer Plus model`);
+        if (belowMinHardness) shortfalls.push(`hardness ${hardnessVal} GPG is below the ${SANITIZER_MIN_HARDNESS_GPG} GPG minimum`);
+        if (belowMinTds) shortfalls.push(`TDS ${tdsVal} ppm is below the ${SANITIZER_MIN_TDS_PPM} ppm minimum`);
         components.push({
           category: "ph_neutralizer",
           title: `Water-Right ${neutralizer.model.model} (Acid Neutralizer)`,
-          reason: `Required upstream of the Sanitizer Plus ${model.model}, whose minimum influent pH is ${model.minPh}; raw pH is ${phVal}.`,
+          reason: `Required upstream of the Sanitizer Plus ${model.model} to condition the water so it can regenerate correctly: ${shortfalls.join("; ")}. Calcite media dissolves into the water, raising pH, hardness, and TDS together.`,
           sizingNotes: `${neutralizer.model.mediaCuFt} cu.ft. calcite/mix media, rated ${neutralizer.model.continuousFlowGpm} gpm continuous / ${neutralizer.model.peakFlowGpm} gpm peak.`,
-          triggeredBy: [`pH ${ph?.resultRaw}`],
+          triggeredBy: [
+            ...(belowMinPh ? [`pH ${ph?.resultRaw}`] : []),
+            ...(belowMinHardness ? [`Hardness ${hardnessVal} GPG`] : []),
+            ...(belowMinTds ? [`TDS ${tdsVal} ppm`] : []),
+          ],
           priority: 1,
         });
         phHandledUpstream = true;
         phHandledMinPh = 0; // pH now corrected before the Sanitizer Plus sees it
-      }
-
-      if (hardnessVal < SANITIZER_MIN_HARDNESS_GPG) {
-        warnings.push({
-          analyte: "Hardness",
-          message: `Sanitizer Plus needs at least ${SANITIZER_MIN_HARDNESS_GPG} GPG hardness to regenerate correctly; this water tested at ${hardnessVal} GPG. Confirm with Water-Right before specifying.`,
-          severity: "warning",
-        });
-      }
-      if (tds && tdsVal < SANITIZER_MIN_TDS_PPM) {
-        warnings.push({
-          analyte: "TDS",
-          message: `Sanitizer Plus needs at least ${SANITIZER_MIN_TDS_PPM} ppm TDS to regenerate correctly; this water tested at ${tdsVal} ppm. Confirm with Water-Right before specifying.`,
-          severity: "warning",
-        });
       } else if (!tds) {
         warnings.push({
           analyte: "TDS",
@@ -455,12 +473,14 @@ export function generateDesign(analytes: AnalyteReading[], household: HouseholdI
   const nitriteVal = nitrite?.result ?? 0;
   const arsenicVal = arsenic?.result ?? 0;
   const leadVal = lead?.result ?? 0;
+  const uraniumVal = analyteValueInMgL(uranium);
   const roTriggers: string[] = [];
   if (tdsVal > THRESHOLDS.tdsSecondaryMclMgL) roTriggers.push(`TDS ${tds?.resultRaw} mg/L`);
   if (nitrateVal > THRESHOLDS.nitrateMclMgL) roTriggers.push(`Nitrate ${nitrate?.resultRaw} mg/L`);
   if (nitriteVal > THRESHOLDS.nitriteMclMgL) roTriggers.push(`Nitrite ${nitrite?.resultRaw} mg/L`);
   if (arsenicVal > THRESHOLDS.arsenicMclMgL) roTriggers.push(`Arsenic ${arsenic?.resultRaw} mg/L`);
   if (leadVal > THRESHOLDS.leadActionLevelMgL) roTriggers.push(`Lead ${lead?.resultRaw} mg/L`);
+  if (uraniumVal > THRESHOLDS.uraniumMclMgL) roTriggers.push(`Uranium ${uranium?.resultRaw} ${uranium?.unit ?? "mg/L"}`);
 
   if (roTriggers.length > 0) {
     const ro = MICROLINE_RO;
@@ -502,6 +522,13 @@ export function generateDesign(analytes: AnalyteReading[], household: HouseholdI
     warnings.push({
       analyte: "Lead",
       message: `Lead at ${lead?.resultRaw} mg/L exceeds the EPA action level of ${THRESHOLDS.leadActionLevelMgL} mg/L.`,
+      severity: "critical",
+    });
+  }
+  if (uraniumVal > THRESHOLDS.uraniumMclMgL) {
+    warnings.push({
+      analyte: "Uranium",
+      message: `Uranium at ${uranium?.resultRaw} ${uranium?.unit ?? "mg/L"} exceeds the EPA primary MCL of 30 ug/L (a radioactive contaminant; not removable by softening or carbon -- RO required for drinking water).`,
       severity: "critical",
     });
   }
